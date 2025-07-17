@@ -1,11 +1,22 @@
 require('dotenv').config()  // Load all configuration of the project.
 
 const connectDB = require("./db/index.js");    // Importing our mongoDB function here....
+const { app } = require("./app.js")
 
-connectDB();
-
+connectDB()                                   // Now it is async so it always return promise we need to handle it laso.
+.then(() => {
+    app.listen(process.env.PORT || 8000, () => {
+        console.log(`Server is running at port : ${process.env.PORT}`);
+        
+    })
+})
+.catch((err) => {
+    console.log(("Mongo db connection failed !!! ", err));
+    
+})
 
 /*  NOrmal approach if we put all connection code in main file, but we put these all connection code in db folder for better distributing.
+    process is used it have current process refrence in it.
 
 ( async () => {
     try {
