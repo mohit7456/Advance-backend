@@ -79,6 +79,14 @@ userSchema.methods.isPasswordCorrect = async function(password){
     return await bcrypt.compare(password, this.password)
 }
 
+// Now access-token and referesh-token h kya - access-token toh voh mtlb ki like jese he user login hua apan ne usko 15min. ka 
+// access-token de diya , 15min. hote he voh vapas validate karega user ko password mangega toh ek tarah se access-token
+// kisi bhi chiz ko access karne ka given fix time de deta h,but agar esa hota h toh user bar - bar password dalke pareshan ho
+// jaega so ab yaha ata h refresh-token, jab bhi hum access-token pass karte h toh sath me refresh-token bhi pass karte h
+// jisme refresh-token ka reference(copy) apne database me bhi rehti h us user ke model me or ek user ke browser me , toh 
+// jese he 15min khatam hone lagenge user ka browser request karega then server check karega ki browser or uske pas database
+// me joh token same h kya , agar same hote h toh firse voh usko new token generate kar dega 15min. ka.
+
 // Now generating tokens using jwt, Here wwe don't need async-await it is fast already.
 userSchema.methods.generateAccessToken = function(){
     return jwt.sign(
