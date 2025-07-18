@@ -69,7 +69,7 @@ userSchema.pre("save", async function (next) {     // Here we use function inste
     // But there is a problem it encyrpted everytime like when user update its avatar photo then it again encrpted it.
     if(!this.isModified("password")) return next();
 
-    this.password = bcrypt.hash(this.password, 10)
+    this.password = await bcrypt.hash(this.password, 10)
     next()
 })
 
@@ -115,4 +115,6 @@ userSchema.methods.generateRefreshToken = function(){
     )
 }
 
-export const User = mongoose.model("User", userSchema)      // 2nd User is for when we using refernce of it.
+const User = mongoose.model("User", userSchema)      // 2nd User is for when we using refernce of it, this User is responsible 
+//                                                      if we need to access database.
+module.exports = User
