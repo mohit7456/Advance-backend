@@ -125,4 +125,4 @@ userSchema.methods.generateRefreshToken = function(){
 
 const User = mongoose.model("User", userSchema)      // 2nd User is for when we using refernce of it, this User is responsible 
 //                                                      if we need to access database.
-module.exports = User
+module.exports = { User }

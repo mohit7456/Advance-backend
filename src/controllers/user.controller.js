@@ -2,9 +2,10 @@
 
 const { asyncHandler } = require("../utils/asyncHandler.js")
 const { ApiError } = require("../utils/ApiErrors.js")
-const User = require("../models/user.model.js")
+const { User } = require("../models/user.model.js")
 const uploadOnCloudinary = require("../utils/cloudinary.js")
 const { ApiResponse } = require("../utils/ApiResponse.js")
+const jwt = require("jsonwebtoken")
 
 const generateAccessAndRefereshTokens = async(userId) => 
 {
@@ -142,7 +143,7 @@ const loginUser = asyncHandler( async (req, res) => {
     //Finding user in database....
     const user = await User.findOne({
         $or: [{username}, {email}]
-    })
+    });
 
     // user --> current user which are logging in
     // User --> mongodb saved user.
@@ -166,7 +167,7 @@ const loginUser = asyncHandler( async (req, res) => {
     const {accessToken, refreshToken} = await generateAccessAndRefereshTokens(user._id)
 
     // Now select when user login which data we need to send
-    const loggedInUser = await user.findById(user._id).select("-password -refreshToken")
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
     // Now send the remaining information and tokens in cookies
 
@@ -197,9 +198,107 @@ const loginUser = asyncHandler( async (req, res) => {
 // For log-out we have to remove these tokens from the user
 const logoutUser = asyncHandler(async (req, res) => {
     // ab vaha toh humne url mila tha vaha se user ka email,usernmae se uski databse id finnd out kar li thi but,
-    // yaha toh koi option nahi h use find akrne ka.
+    // yaha toh koi option nahi h user id find krne ka.
     // Toh ek solution nikala like jis type se hum multer ko middleware ki tarah use karke usko routes me pass kar rahe the same vase 
-    // hum khudka middleware design karenge()
+    // hum khudka middleware design karenge(), joh ki user jab login karega toh hum login functionality me usko access or refresh token
+    // bhi de rahe h toh voh usek browser me add ho jaegi jab bhi voh login karega or iske sath hum hamara design kara hua middleware
+    // bhi pass karenge joh humne user ko access karne dega jisse hum url se request karke id access kar paenge.
+    // Basially in short-terms humne joh hamare tokens beje usme humne define kar rakha h ki tokens me kya - kya available hoga
+    // user.model file me toh vaha humne id bhi define kar rakhi h toh hum id user ke token se access kar lenge.
+
+    // Now ab apne pas middleware(auth.middleware.js) se user ki saari information a gayi ab hum easily user ki information nikal ke 
+    // usse logout karva paenge.
+    
+
+    // Find and update its value in mongodb
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set: {refreshToken: undefined},
+        },
+        {
+            new: true       // ye updated value(undefined) de dega varna purani value show karega.
+        }
+    )
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    // Now send updated refresh(undefined) and access token value.
+    return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User logged Out"))
+
+
 })
 
-module.exports = {registerUser}
+// Now we have to check when acces token time expires then we have to genearte new token with the help of refresh token
+// So we need to check user is valid with tokens, so we take user token(encrypt from) from request(req)
+// validate that it our database refresh token and that both should be same.
+const refreshAccessToken = asyncHandler(async (req, res) => {
+
+    // If user is on mobile ---> req.body.refreshToken
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+
+    // If token is not available, return error
+    if (!incomingRefreshToken) {
+        throw new ApiError(401, "unauthorized request")
+
+    }
+
+    try {
+        // Verify unencrpyt user token that user token is valid or expires. 
+        // Now jwt.verify returns payload value(._id)
+        const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOEKN_SECRET)
+        
+        // Extract id from decoded token
+        const user = await User.findById(decodedToken?._id)
+    
+        // if it is empty, return error...
+        if (!user) {
+            throw new ApiError(401, "Invalid refresh token")
+    
+        }
+    
+        // Now we checking user browser refresh-token and our databse refresh token is same
+        if (incomingRefreshToken !== user?.refreshToken) {
+            throw new ApiError(401, "Refresh token is expired or used.")
+    
+        }
+    
+        // At this point , now both matching, now generate new access token using define function at top of file
+        const options = {
+            httpOnly: true,
+            secure: true
+        }
+    
+        const {accessToken, newRefreshToken} = await generateAccessAndRefereshTokens(user._id)
+    
+        // now send response to the user browser and our database also.
+        return res
+        .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", newRefreshToken, options)
+        .json(
+            new ApiResponse(
+                200,
+                {accessToken, refreshToken: newRefreshToken},
+                "Access token refreshed"
+            )
+        )
+    } catch (error) {
+        throw new ApiError(401, error?.message || "Invalid refresh token")
+
+    }
+
+        
+})
+
+module.exports = { registerUser, loginUser, logoutUser, refreshAccessToken }
+
+// User ---> model vala user(whole databse) represent kar raha h(.findbyID,etc)
+// user ---> current user(joh method humne user model pe implement kiye voh yaha lagte h - isPasswordCorrect(), generateRefreshToken())

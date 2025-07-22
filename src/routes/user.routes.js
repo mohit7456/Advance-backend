@@ -1,6 +1,7 @@
 const Router = require("express");
-const { registerUser } = require("../controllers/user.controller.js");
+const { loginUser, registerUser, logoutUser, refreshAccessToken } = require("../controllers/user.controller.js");
 const { upload } = require("../middlewares/multer.middleware.js")
+const verifyJWT = require("../middlewares/auth.middleware.js")
 
 
 const router = Router()
@@ -20,6 +21,17 @@ router.route("/register").post(
             maxCount: 1
         }
     ]),
-    registerUser)
+    registerUser
+)
+
+router.route("/login").post(loginUser)
+
+// For logout apne pas ek he traika toh h ki user login h ya nahi toh hum midlleware use karnege joh humne likha tha - verifyJWT
+// ye middleware pehle run hoke user ki saari information la dega or check bhi ka rlega user h bhi ya nahi ya login h  bhi ya nahi..
+// Below this all are Secured routes -- means login required for this.
+router.route("/logout").post(verifyJWT, logoutUser)
+
+// When user Access-token is expired then it hit on this URL to re-generate new tokens.
+router.route("/refresh-token").post(refreshAccessToken)
 
 module.exports = router
